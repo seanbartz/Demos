@@ -894,10 +894,17 @@
       const tolPhi = 0.05;
       const tolDot = 0.1;
       for (let p = 1; p <= maxPeriod; p++) {
-        if (n < p + 1) break;
-        const dPhi = Math.abs(state.poincarePhiWrappedHistory[n - 1] - state.poincarePhiWrappedHistory[n - 1 - p]);
-        const dDot = Math.abs(state.poincarePhiDotHistory[n - 1] - state.poincarePhiDotHistory[n - 1 - p]);
-        if (dPhi < tolPhi && dDot < tolDot) {
+        if (n < 2 * p + 1) break;
+        let match = true;
+        for (let k = 0; k < p; k++) {
+          const dPhi = Math.abs(state.poincarePhiWrappedHistory[n - 1 - k] - state.poincarePhiWrappedHistory[n - 1 - k - p]);
+          const dDot = Math.abs(state.poincarePhiDotHistory[n - 1 - k] - state.poincarePhiDotHistory[n - 1 - k - p]);
+          if (dPhi >= tolPhi || dDot >= tolDot) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
           return p;
         }
       }
