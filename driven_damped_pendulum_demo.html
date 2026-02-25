@@ -824,7 +824,7 @@
       }
 
       const dotBound = Math.max(4, Math.max(...state.poincarePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
-      const highlightCount = Math.min(6, n);
+      const highlightCount = Math.min(9, n);
       const backgroundCount = n - highlightCount;
 
       // Older points: faint background cloud.
@@ -839,7 +839,7 @@
         poCtx.fill();
       }
 
-      // Recent points: highlight a 6-point trail (older -> newer).
+      // Recent points: highlight a 9-point trail (older -> newer).
       for (let j = 0; j < highlightCount; j++) {
         const i = n - highlightCount + j;
         const weight = (j + 1) / highlightCount;
