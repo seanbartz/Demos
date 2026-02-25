@@ -376,6 +376,7 @@
         <div class="canvas-wrap">
           <div class="label">Poincare Section</div>
           <canvas id="poincareCanvas" aria-label="poincare section"></canvas>
+          <div id="poincarePeriodDisplay" class="label" style="top:auto;bottom:8px;left:auto;right:10px;display:none;"></div>
         </div>
       </div>
     </section>
@@ -887,6 +888,22 @@
       phCtx.fill();
     }
 
+    function detectPeriod() {
+      const n = state.poincarePhiWrappedHistory.length;
+      const maxPeriod = 12;
+      const tolPhi = 0.05;
+      const tolDot = 0.1;
+      for (let p = 1; p <= maxPeriod; p++) {
+        if (n < p + 1) break;
+        const dPhi = Math.abs(state.poincarePhiWrappedHistory[n - 1] - state.poincarePhiWrappedHistory[n - 1 - p]);
+        const dDot = Math.abs(state.poincarePhiDotHistory[n - 1] - state.poincarePhiDotHistory[n - 1 - p]);
+        if (dPhi < tolPhi && dDot < tolDot) {
+          return p;
+        }
+      }
+      return null;
+    }
+
     function drawPoincarePlot() {
       const { w, h, dpr } = sizeCanvas(poincareCanvas);
       poCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -930,6 +947,15 @@
         poCtx.beginPath();
         poCtx.arc(x, y, radius, 0, TAU);
         poCtx.fill();
+      }
+
+      const period = detectPeriod();
+      const periodDisplay = document.getElementById("poincarePeriodDisplay");
+      if (period !== null) {
+        periodDisplay.textContent = "Period: " + period;
+        periodDisplay.style.display = "";
+      } else {
+        periodDisplay.style.display = "none";
       }
     }
 
