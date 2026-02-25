@@ -108,12 +108,22 @@
       font-weight: 600;
     }
 
-    .control output {
+    .control .value-input {
       font-family: var(--mono);
       font-size: 0.84rem;
       color: #334155;
-      min-width: 65px;
+      min-width: 78px;
       text-align: right;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .control .value-input:focus {
+      outline: none;
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
     }
 
     .control input[type="range"] {
@@ -127,6 +137,22 @@
       display: flex;
       gap: 8px;
       margin-top: 6px;
+    }
+
+    .history-toggle {
+      margin-top: 8px;
+      font-size: 0.86rem;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-toggle input[type="checkbox"] {
+      accent-color: var(--accent-2);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
     }
 
     button {
@@ -256,8 +282,12 @@
         <button id="toggle" type="button">Pause</button>
         <button id="reset" type="button">Reset</button>
       </div>
+      <label class="history-toggle" for="preservePhaseHistory">
+        <input id="preservePhaseHistory" type="checkbox" />
+        Preserve full phase-plot history
+      </label>
       <div class="note">
-        Gamma updates live. Initial-condition sliders reset the state immediately.
+        Click any numeric value to type it directly. Gamma updates live. Initial-condition sliders reset the state immediately.
       </div>
     </section>
 
@@ -293,6 +323,10 @@
       phiHistory: [],
       phiWrappedHistory: [],
       phiDotHistory: [],
+      fullPhasePhiWrappedHistory: [],
+      fullPhasePhiDotHistory: [],
+      fullPhaseMaxAbsPhiDot: 0,
+      preserveFullPhaseHistory: false,
       maxSamples: 2200
     };
 
@@ -308,7 +342,7 @@
     };
 
     const controlsConfig = [
-      { key: "gamma", label: "Drive scale gamma", min: 0, max: 2.5, step: 0.01, digits: 2, resetOnChange: false, advanced: false },
+      { key: "gamma", label: "Drive scale gamma", min: 0, max: 2.5, step: 0.001, digits: 3, resetOnChange: false, advanced: false },
       { key: "phi0", label: "Initial angle phi0 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
       { key: "phiDot0", label: "Initial angular speed phiDot0 (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
       { key: "beta", label: "Damping beta", min: 0, max: 8, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
@@ -322,6 +356,7 @@
     const advancedControlsContainer = document.getElementById("advancedControls");
     const toggleBtn = document.getElementById("toggle");
     const resetBtn = document.getElementById("reset");
+    const preservePhaseHistoryCheckbox = document.getElementById("preservePhaseHistory");
 
     const pendulumCanvas = document.getElementById("pendulumCanvas");
     const timeCanvas = document.getElementById("timeCanvas");
@@ -338,9 +373,14 @@
       label.setAttribute("for", cfg.key);
       label.textContent = cfg.label;
 
-      const output = document.createElement("output");
-      output.id = cfg.key + "Value";
-      output.textContent = formatNumber(params[cfg.key], cfg.digits);
+      const valueInput = document.createElement("input");
+      valueInput.type = "number";
+      valueInput.className = "value-input";
+      valueInput.id = cfg.key + "Value";
+      valueInput.min = String(cfg.min);
+      valueInput.max = String(cfg.max);
+      valueInput.step = String(cfg.step);
+      valueInput.value = formatNumber(params[cfg.key], cfg.digits);
 
       const slider = document.createElement("input");
       slider.type = "range";
@@ -350,17 +390,37 @@
       slider.step = String(cfg.step);
       slider.value = String(params[cfg.key]);
 
-      slider.addEventListener("input", () => {
-        const v = Number(slider.value);
+      const applyValue = (candidateValue) => {
+        if (!Number.isFinite(candidateValue)) {
+          valueInput.value = formatNumber(params[cfg.key], cfg.digits);
+          return;
+        }
+        const v = Math.min(cfg.max, Math.max(cfg.min, candidateValue));
         params[cfg.key] = v;
-        output.textContent = formatNumber(v, cfg.digits);
-
+        slider.value = String(v);
+        valueInput.value = formatNumber(v, cfg.digits);
         if (cfg.resetOnChange) {
           resetSimulation();
+        } else {
+          resetPhaseHistory();
+        }
+      };
+
+      slider.addEventListener("input", () => {
+        applyValue(Number(slider.value));
+      });
+
+      valueInput.addEventListener("change", () => {
+        applyValue(Number(valueInput.value));
+      });
+
+      valueInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          valueInput.blur();
         }
       });
 
-      wrap.append(label, output, slider);
+      wrap.append(label, valueInput, slider);
       return wrap;
     }
 
@@ -422,12 +482,18 @@
 
       state.timeHistory.push(state.t);
       state.phiHistory.push(state.phi);
-      state.phiWrappedHistory.push(wrapToPi(state.phi));
+      const wrappedPhi = wrapToPi(state.phi);
+      state.phiWrappedHistory.push(wrappedPhi);
       state.phiDotHistory.push(state.phiDot);
+      state.fullPhasePhiWrappedHistory.push(wrappedPhi);
+      state.fullPhasePhiDotHistory.push(state.phiDot);
+      state.fullPhaseMaxAbsPhiDot = Math.max(state.fullPhaseMaxAbsPhiDot, Math.abs(state.phiDot));
 
       if (state.timeHistory.length > state.maxSamples) {
         state.timeHistory.shift();
         state.phiHistory.shift();
+      }
+      if (state.phiWrappedHistory.length > state.maxSamples) {
         state.phiWrappedHistory.shift();
         state.phiDotHistory.shift();
       }
@@ -437,11 +503,24 @@
       state.t = 0;
       state.phi = params.phi0;
       state.phiDot = params.phiDot0;
+      const wrappedPhi = wrapToPi(state.phi);
       state.timeHistory = [0];
       state.phiHistory = [state.phi];
-      state.phiWrappedHistory = [wrapToPi(state.phi)];
+      state.phiWrappedHistory = [wrappedPhi];
       state.phiDotHistory = [state.phiDot];
+      state.fullPhasePhiWrappedHistory = [wrappedPhi];
+      state.fullPhasePhiDotHistory = [state.phiDot];
+      state.fullPhaseMaxAbsPhiDot = Math.abs(state.phiDot);
       state.lastTimestamp = null;
+    }
+
+    function resetPhaseHistory() {
+      const wrappedPhi = wrapToPi(state.phi);
+      state.phiWrappedHistory = [wrappedPhi];
+      state.phiDotHistory = [state.phiDot];
+      state.fullPhasePhiWrappedHistory = [wrappedPhi];
+      state.fullPhasePhiDotHistory = [state.phiDot];
+      state.fullPhaseMaxAbsPhiDot = Math.abs(state.phiDot);
     }
 
     function sizeCanvas(canvas) {
@@ -570,7 +649,7 @@
         if (tVal < tMin) {
           continue;
         }
-        const phiWrapped = state.phiWrappedHistory[i];
+        const phiWrapped = wrapToPi(state.phiHistory[i]);
         const x = frame.left + (frame.right - frame.left) * ((tVal - tMin) / Math.max(1e-9, windowSecs));
         const yNorm = (phiWrapped + Math.PI) / TAU;
         const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
@@ -595,13 +674,21 @@
       phCtx.clearRect(0, 0, w, h);
 
       const frame = drawAxes(phCtx, w, h, "phi", "phiDot");
-      const n = state.phiWrappedHistory.length;
+      const phasePhiHistory = state.preserveFullPhaseHistory
+        ? state.fullPhasePhiWrappedHistory
+        : state.phiWrappedHistory;
+      const phasePhiDotHistory = state.preserveFullPhaseHistory
+        ? state.fullPhasePhiDotHistory
+        : state.phiDotHistory;
+      const n = phasePhiHistory.length;
       if (n < 2) {
         return;
       }
 
-      const dotBound = Math.max(4, Math.max(...state.phiDotHistory.map((v) => Math.abs(v))) * 1.1);
-      const start = Math.max(0, n - 1200);
+      const dotBound = state.preserveFullPhaseHistory
+        ? Math.max(4, state.fullPhaseMaxAbsPhiDot * 1.1)
+        : Math.max(4, Math.max(...phasePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
+      const start = state.preserveFullPhaseHistory ? 0 : Math.max(0, n - 1200);
 
       phCtx.strokeStyle = "#ea580c";
       phCtx.lineWidth = 1.2;
@@ -609,9 +696,9 @@
       let prevPhiWrapped = 0;
 
       for (let i = start; i < n; i++) {
-        const phiWrapped = state.phiWrappedHistory[i];
+        const phiWrapped = phasePhiHistory[i];
         const xNorm = (phiWrapped + Math.PI) / TAU;
-        const yNorm = (state.phiDotHistory[i] + dotBound) / (2 * dotBound);
+        const yNorm = (phasePhiDotHistory[i] + dotBound) / (2 * dotBound);
         const x = frame.left + (frame.right - frame.left) * xNorm;
         const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
         if (i === start) {
@@ -672,6 +759,11 @@
       if (!state.running) {
         render();
       }
+    });
+
+    preservePhaseHistoryCheckbox.addEventListener("change", () => {
+      state.preserveFullPhaseHistory = preservePhaseHistoryCheckbox.checked;
+      render();
     });
 
     window.addEventListener("resize", () => render());
