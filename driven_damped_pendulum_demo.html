@@ -824,26 +824,38 @@
       }
 
       const dotBound = Math.max(4, Math.max(...state.poincarePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
+      const highlightCount = Math.min(6, n);
+      const backgroundCount = n - highlightCount;
 
-      poCtx.fillStyle = "rgba(22,163,74,0.55)";
-      for (let i = 0; i < n - 1; i++) {
+      // Older points: faint background cloud.
+      poCtx.fillStyle = "rgba(22,163,74,0.35)";
+      for (let i = 0; i < backgroundCount; i++) {
         const xNorm = (state.poincarePhiWrappedHistory[i] + Math.PI) / TAU;
         const yNorm = (state.poincarePhiDotHistory[i] + dotBound) / (2 * dotBound);
         const x = frame.left + (frame.right - frame.left) * xNorm;
         const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
         poCtx.beginPath();
-        poCtx.arc(x, y, 1.8, 0, TAU);
+        poCtx.arc(x, y, 1.7, 0, TAU);
         poCtx.fill();
       }
 
-      const latestXNorm = (state.poincarePhiWrappedHistory[n - 1] + Math.PI) / TAU;
-      const latestYNorm = (state.poincarePhiDotHistory[n - 1] + dotBound) / (2 * dotBound);
-      const latestX = frame.left + (frame.right - frame.left) * latestXNorm;
-      const latestY = frame.bottom - (frame.bottom - frame.top) * latestYNorm;
-      poCtx.fillStyle = "#14532d";
-      poCtx.beginPath();
-      poCtx.arc(latestX, latestY, 3.1, 0, TAU);
-      poCtx.fill();
+      // Recent points: highlight a 6-point trail (older -> newer).
+      for (let j = 0; j < highlightCount; j++) {
+        const i = n - highlightCount + j;
+        const weight = (j + 1) / highlightCount;
+        const xNorm = (state.poincarePhiWrappedHistory[i] + Math.PI) / TAU;
+        const yNorm = (state.poincarePhiDotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+        const radius = 2.0 + (2.4 * weight);
+        const alpha = 0.42 + (0.58 * weight);
+        const lightness = 60 - (36 * weight);
+
+        poCtx.fillStyle = `hsla(138, 72%, ${lightness}%, ${alpha})`;
+        poCtx.beginPath();
+        poCtx.arc(x, y, radius, 0, TAU);
+        poCtx.fill();
+      }
     }
 
     function render() {
