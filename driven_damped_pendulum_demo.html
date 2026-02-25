@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Driven Damped Pendulum Demo</title>
+  <style>
+    :root {
+      --bg-top: #0f172a;
+      --bg-bottom: #1e293b;
+      --panel: rgba(248, 250, 252, 0.95);
+      --ink: #0f172a;
+      --accent: #ea580c;
+      --accent-2: #0284c7;
+      --grid: rgba(15, 23, 42, 0.12);
+      --radius: 14px;
+      --shadow: 0 14px 40px rgba(2, 6, 23, 0.28);
+      --mono: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+      --sans: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: #e2e8f0;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(234, 88, 12, 0.22) 0%, rgba(234, 88, 12, 0) 35%),
+        radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.22) 0%, rgba(2, 132, 199, 0) 42%),
+        linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .layout {
+      max-width: 1260px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      backdrop-filter: blur(5px);
+    }
+
+    h1 {
+      font-size: 1.45rem;
+      margin: 0 0 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .equation {
+      font-family: var(--mono);
+      font-size: 0.86rem;
+      line-height: 1.4;
+      background: rgba(15, 23, 42, 0.06);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 14px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .advanced-pane {
+      margin-top: 10px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.05);
+      padding: 4px 8px 8px;
+    }
+
+    .advanced-pane summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #334155;
+      padding: 8px 2px;
+      user-select: none;
+    }
+
+    .advanced-pane[open] summary {
+      margin-bottom: 8px;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 12px;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 10px;
+    }
+
+    .control label {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .control output {
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      color: #334155;
+      min-width: 65px;
+      text-align: right;
+    }
+
+    .control input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 6, 23, 0.2);
+    }
+
+    #toggle {
+      background: var(--accent-2);
+      color: white;
+      flex: 1;
+    }
+
+    #reset {
+      background: var(--accent);
+      color: white;
+      flex: 1;
+    }
+
+    .readout {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      display: grid;
+      gap: 4px;
+      color: #1e293b;
+    }
+
+    .viz {
+      display: grid;
+      gap: 12px;
+      grid-template-rows: minmax(360px, 1fr) 210px;
+    }
+
+    .viz-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 200px;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .canvas-wrap.main {
+      min-height: 360px;
+    }
+
+    .label {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #334155;
+      background: rgba(248, 250, 252, 0.9);
+      border-radius: 8px;
+      padding: 4px 8px;
+      z-index: 2;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .note {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #475569;
+    }
+
+    @media (max-width: 1040px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .viz {
+        grid-template-rows: minmax(320px, 1fr) auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 12px;
+      }
+
+      .panel {
+        padding: 12px;
+      }
+
+      .viz-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel">
+      <h1>Driven Damped Pendulum</h1>
+      <div class="equation">
+        &phi;&#8243; + 2&beta;&phi;&#8242; + &omega;<sub>0</sub><sup>2</sup> sin(&phi;) =
+        &gamma;&omega;<sub>0</sub><sup>2</sup> cos(&omega;t)
+      </div>
+      <div class="controls" id="primaryControls"></div>
+      <details class="advanced-pane">
+        <summary>Adjust other parameters</summary>
+        <div class="controls" id="advancedControls"></div>
+      </details>
+      <div class="buttons">
+        <button id="toggle" type="button">Pause</button>
+        <button id="reset" type="button">Reset</button>
+      </div>
+      <div class="note">
+        Gamma updates live. Initial-condition sliders reset the state immediately.
+      </div>
+    </section>
+
+    <section class="panel viz">
+      <div class="canvas-wrap main">
+        <div class="label">Real-time Pendulum Animation</div>
+        <canvas id="pendulumCanvas" aria-label="pendulum animation"></canvas>
+      </div>
+      <div class="viz-grid">
+        <div class="canvas-wrap">
+          <div class="label">Angle vs Time</div>
+          <canvas id="timeCanvas" aria-label="angle vs time"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <div class="label">Phase Portrait (&phi;, &phi;&#8242;)</div>
+          <canvas id="phaseCanvas" aria-label="phase portrait"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const TAU = Math.PI * 2;
+    const PENDULUM_LENGTH_PX = 150;
+
+    const state = {
+      t: 0,
+      phi: 0,
+      phiDot: 0,
+      running: true,
+      lastTimestamp: null,
+      timeHistory: [],
+      phiHistory: [],
+      phiWrappedHistory: [],
+      phiDotHistory: [],
+      maxSamples: 2200
+    };
+
+    const params = {
+      phi0: 0.0,
+      phiDot0: 0.0,
+      beta: (1.5 * TAU) / 4,
+      omega0: 1.5 * TAU,
+      gamma: 0.9,
+      omega: TAU,
+      dt: 0.005,
+      speed: 1.0
+    };
+
+    const controlsConfig = [
+      { key: "gamma", label: "Drive scale gamma", min: 0, max: 2.5, step: 0.01, digits: 2, resetOnChange: false, advanced: false },
+      { key: "phi0", label: "Initial angle phi0 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "phiDot0", label: "Initial angular speed phiDot0 (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "beta", label: "Damping beta", min: 0, max: 8, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
+      { key: "omega0", label: "Natural freq omega0 (rad/s)", min: 0.2, max: 20, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
+      { key: "omega", label: "Drive freq omega (rad/s)", min: 0.2, max: 20, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
+      { key: "dt", label: "Integrator step dt (s)", min: 0.001, max: 0.03, step: 0.001, digits: 3, resetOnChange: false, advanced: true },
+      { key: "speed", label: "Simulation speed", min: 0.1, max: 6, step: 0.1, digits: 1, resetOnChange: false, advanced: true }
+    ];
+
+    const primaryControlsContainer = document.getElementById("primaryControls");
+    const advancedControlsContainer = document.getElementById("advancedControls");
+    const toggleBtn = document.getElementById("toggle");
+    const resetBtn = document.getElementById("reset");
+
+    const pendulumCanvas = document.getElementById("pendulumCanvas");
+    const timeCanvas = document.getElementById("timeCanvas");
+    const phaseCanvas = document.getElementById("phaseCanvas");
+    const pCtx = pendulumCanvas.getContext("2d");
+    const tCtx = timeCanvas.getContext("2d");
+    const phCtx = phaseCanvas.getContext("2d");
+
+    function buildControl(cfg) {
+      const wrap = document.createElement("div");
+      wrap.className = "control";
+
+      const label = document.createElement("label");
+      label.setAttribute("for", cfg.key);
+      label.textContent = cfg.label;
+
+      const output = document.createElement("output");
+      output.id = cfg.key + "Value";
+      output.textContent = formatNumber(params[cfg.key], cfg.digits);
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.id = cfg.key;
+      slider.min = String(cfg.min);
+      slider.max = String(cfg.max);
+      slider.step = String(cfg.step);
+      slider.value = String(params[cfg.key]);
+
+      slider.addEventListener("input", () => {
+        const v = Number(slider.value);
+        params[cfg.key] = v;
+        output.textContent = formatNumber(v, cfg.digits);
+
+        if (cfg.resetOnChange) {
+          resetSimulation();
+        }
+      });
+
+      wrap.append(label, output, slider);
+      return wrap;
+    }
+
+    function createControls() {
+      controlsConfig.forEach((cfg) => {
+        const targetContainer = cfg.advanced ? advancedControlsContainer : primaryControlsContainer;
+        targetContainer.appendChild(buildControl(cfg));
+      });
+    }
+
+    function formatNumber(value, digits = 2) {
+      return Number(value).toFixed(digits);
+    }
+
+    function wrapToPi(angle) {
+      const shifted = (angle + Math.PI) % TAU;
+      const wrapped = shifted < 0 ? shifted + TAU : shifted;
+      return wrapped - Math.PI;
+    }
+
+    function dynamics(t, phi, phiDot) {
+      return (params.gamma * (params.omega0 ** 2) * Math.cos(params.omega * t))
+        - (2 * params.beta * phiDot)
+        - ((params.omega0 ** 2) * Math.sin(phi));
+    }
+
+    function rk4Step(h) {
+      const t0 = state.t;
+      const y1 = state.phi;
+      const y2 = state.phiDot;
+
+      const k1_phi = y2;
+      const k1_phiDot = dynamics(t0, y1, y2);
+
+      const k2_phi = y2 + 0.5 * h * k1_phiDot;
+      const k2_phiDot = dynamics(
+        t0 + 0.5 * h,
+        y1 + 0.5 * h * k1_phi,
+        y2 + 0.5 * h * k1_phiDot
+      );
+
+      const k3_phi = y2 + 0.5 * h * k2_phiDot;
+      const k3_phiDot = dynamics(
+        t0 + 0.5 * h,
+        y1 + 0.5 * h * k2_phi,
+        y2 + 0.5 * h * k2_phiDot
+      );
+
+      const k4_phi = y2 + h * k3_phiDot;
+      const k4_phiDot = dynamics(
+        t0 + h,
+        y1 + h * k3_phi,
+        y2 + h * k3_phiDot
+      );
+
+      state.phi += (h / 6) * (k1_phi + 2 * k2_phi + 2 * k3_phi + k4_phi);
+      state.phiDot += (h / 6) * (k1_phiDot + 2 * k2_phiDot + 2 * k3_phiDot + k4_phiDot);
+      state.t += h;
+
+      state.timeHistory.push(state.t);
+      state.phiHistory.push(state.phi);
+      state.phiWrappedHistory.push(wrapToPi(state.phi));
+      state.phiDotHistory.push(state.phiDot);
+
+      if (state.timeHistory.length > state.maxSamples) {
+        state.timeHistory.shift();
+        state.phiHistory.shift();
+        state.phiWrappedHistory.shift();
+        state.phiDotHistory.shift();
+      }
+    }
+
+    function resetSimulation() {
+      state.t = 0;
+      state.phi = params.phi0;
+      state.phiDot = params.phiDot0;
+      state.timeHistory = [0];
+      state.phiHistory = [state.phi];
+      state.phiWrappedHistory = [wrapToPi(state.phi)];
+      state.phiDotHistory = [state.phiDot];
+      state.lastTimestamp = null;
+    }
+
+    function sizeCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      return { w: canvas.width / dpr, h: canvas.height / dpr, dpr };
+    }
+
+    function drawPendulum() {
+      const { w, h, dpr } = sizeCanvas(pendulumCanvas);
+      pCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pCtx.clearRect(0, 0, w, h);
+
+      const pivotX = w * 0.5;
+      const pivotY = h * 0.33;
+      const L = PENDULUM_LENGTH_PX;
+      const bobX = pivotX + L * Math.sin(state.phi);
+      const bobY = pivotY + L * Math.cos(state.phi);
+
+      pCtx.strokeStyle = "#64748b";
+      pCtx.lineWidth = 2;
+      pCtx.beginPath();
+      pCtx.moveTo(0, pivotY);
+      pCtx.lineTo(w, pivotY);
+      pCtx.stroke();
+
+      const drive = params.gamma * (params.omega0 ** 2) * Math.cos(params.omega * state.t);
+      const driveNorm = Math.max(-1, Math.min(1, drive / Math.max(1e-6, params.gamma * (params.omega0 ** 2) + 1e-6)));
+      const barY = pivotY + 26;
+      const barW = w * 0.26;
+      const barH = 12;
+      const barX = w * 0.07;
+
+      pCtx.fillStyle = "#e2e8f0";
+      pCtx.fillRect(barX, barY, barW, barH);
+      pCtx.fillStyle = "#0284c7";
+      if (driveNorm >= 0) {
+        pCtx.fillRect(barX + barW * 0.5, barY, barW * 0.5 * driveNorm, barH);
+      } else {
+        pCtx.fillRect(barX + barW * (0.5 + 0.5 * driveNorm), barY, -barW * 0.5 * driveNorm, barH);
+      }
+      pCtx.strokeStyle = "#334155";
+      pCtx.strokeRect(barX, barY, barW, barH);
+      pCtx.fillStyle = "#334155";
+      pCtx.font = "12px " + getComputedStyle(document.body).getPropertyValue("--mono");
+      pCtx.fillText("drive torque", barX, barY - 6);
+
+      pCtx.strokeStyle = "#1e293b";
+      pCtx.lineWidth = 4;
+      pCtx.beginPath();
+      pCtx.moveTo(pivotX, pivotY);
+      pCtx.lineTo(bobX, bobY);
+      pCtx.stroke();
+
+      const bobRadius = 14 + Math.min(18, Math.abs(state.phiDot) * 0.6);
+      const bobGrad = pCtx.createRadialGradient(bobX - 4, bobY - 6, 4, bobX, bobY, bobRadius + 8);
+      bobGrad.addColorStop(0, "#fb923c");
+      bobGrad.addColorStop(1, "#c2410c");
+      pCtx.fillStyle = bobGrad;
+      pCtx.beginPath();
+      pCtx.arc(bobX, bobY, bobRadius, 0, TAU);
+      pCtx.fill();
+
+      pCtx.fillStyle = "#0f172a";
+      pCtx.beginPath();
+      pCtx.arc(pivotX, pivotY, 5.5, 0, TAU);
+      pCtx.fill();
+    }
+
+    function drawAxes(ctx, w, h, xLabel, yLabel) {
+      const pad = 30;
+      const left = pad;
+      const right = w - pad * 0.5;
+      const top = pad * 0.5;
+      const bottom = h - pad;
+
+      ctx.strokeStyle = "rgba(15,23,42,0.18)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, top, right - left, bottom - top);
+
+      ctx.strokeStyle = "rgba(15,23,42,0.09)";
+      for (let i = 1; i < 5; i++) {
+        const y = top + ((bottom - top) * i) / 5;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#334155";
+      ctx.font = "11px " + getComputedStyle(document.body).getPropertyValue("--mono");
+      ctx.fillText(xLabel, right - 42, bottom + 16);
+      ctx.save();
+      ctx.translate(left - 18, top + 22);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+
+      return { left, right, top, bottom };
+    }
+
+    function drawTimePlot() {
+      const { w, h, dpr } = sizeCanvas(timeCanvas);
+      tCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      tCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(tCtx, w, h, "t", "phi");
+      const n = state.timeHistory.length;
+      if (n < 2) {
+        return;
+      }
+
+      const tMax = state.timeHistory[n - 1];
+      const windowSecs = 14;
+      const tMin = Math.max(0, tMax - windowSecs);
+      tCtx.strokeStyle = "#0284c7";
+      tCtx.lineWidth = 1.8;
+      tCtx.beginPath();
+      let started = false;
+      let prevPhiWrapped = 0;
+
+      for (let i = 0; i < n; i++) {
+        const tVal = state.timeHistory[i];
+        if (tVal < tMin) {
+          continue;
+        }
+        const phiWrapped = state.phiWrappedHistory[i];
+        const x = frame.left + (frame.right - frame.left) * ((tVal - tMin) / Math.max(1e-9, windowSecs));
+        const yNorm = (phiWrapped + Math.PI) / TAU;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+
+        if (!started) {
+          tCtx.moveTo(x, y);
+          started = true;
+        } else if (Math.abs(phiWrapped - prevPhiWrapped) > Math.PI) {
+          // Avoid drawing across the -pi/pi branch cut.
+          tCtx.moveTo(x, y);
+        } else {
+          tCtx.lineTo(x, y);
+        }
+        prevPhiWrapped = phiWrapped;
+      }
+      tCtx.stroke();
+    }
+
+    function drawPhasePlot() {
+      const { w, h, dpr } = sizeCanvas(phaseCanvas);
+      phCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      phCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(phCtx, w, h, "phi", "phiDot");
+      const n = state.phiWrappedHistory.length;
+      if (n < 2) {
+        return;
+      }
+
+      const dotBound = Math.max(4, Math.max(...state.phiDotHistory.map((v) => Math.abs(v))) * 1.1);
+      const start = Math.max(0, n - 1200);
+
+      phCtx.strokeStyle = "#ea580c";
+      phCtx.lineWidth = 1.2;
+      phCtx.beginPath();
+      let prevPhiWrapped = 0;
+
+      for (let i = start; i < n; i++) {
+        const phiWrapped = state.phiWrappedHistory[i];
+        const xNorm = (phiWrapped + Math.PI) / TAU;
+        const yNorm = (state.phiDotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+        if (i === start) {
+          phCtx.moveTo(x, y);
+        } else if (Math.abs(phiWrapped - prevPhiWrapped) > Math.PI) {
+          // Avoid drawing across the -pi/pi branch cut.
+          phCtx.moveTo(x, y);
+        } else {
+          phCtx.lineTo(x, y);
+        }
+        prevPhiWrapped = phiWrapped;
+      }
+      phCtx.stroke();
+
+      const xNorm = (wrapToPi(state.phi) + Math.PI) / TAU;
+      const yNorm = (state.phiDot + dotBound) / (2 * dotBound);
+      const x = frame.left + (frame.right - frame.left) * xNorm;
+      const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+      phCtx.fillStyle = "#0f172a";
+      phCtx.beginPath();
+      phCtx.arc(x, y, 3.2, 0, TAU);
+      phCtx.fill();
+    }
+
+    function render() {
+      drawPendulum();
+      drawTimePlot();
+      drawPhasePlot();
+    }
+
+    function tick(timestamp) {
+      if (state.lastTimestamp == null) {
+        state.lastTimestamp = timestamp;
+      }
+      const realDt = Math.min(0.05, (timestamp - state.lastTimestamp) / 1000);
+      state.lastTimestamp = timestamp;
+
+      if (state.running) {
+        let remaining = realDt * params.speed;
+        while (remaining > 0) {
+          const h = Math.min(params.dt, remaining);
+          rk4Step(h);
+          remaining -= h;
+        }
+      }
+
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    toggleBtn.addEventListener("click", () => {
+      state.running = !state.running;
+      toggleBtn.textContent = state.running ? "Pause" : "Resume";
+    });
+
+    resetBtn.addEventListener("click", () => {
+      resetSimulation();
+      if (!state.running) {
+        render();
+      }
+    });
+
+    window.addEventListener("resize", () => render());
+
+    createControls();
+    resetSimulation();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
