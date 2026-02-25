@@ -194,13 +194,13 @@
     .viz {
       display: grid;
       gap: 12px;
-      grid-template-rows: minmax(360px, 1fr) 210px;
+      grid-template-rows: minmax(360px, 1fr) auto;
     }
 
     .viz-grid {
       display: grid;
       gap: 12px;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .canvas-wrap {
@@ -247,6 +247,12 @@
 
       .viz {
         grid-template-rows: minmax(320px, 1fr) auto;
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .viz-grid {
+        grid-template-columns: 1fr 1fr;
       }
     }
 
@@ -305,6 +311,10 @@
           <div class="label">Phase Portrait (&phi;, &phi;&#8242;)</div>
           <canvas id="phaseCanvas" aria-label="phase portrait"></canvas>
         </div>
+        <div class="canvas-wrap">
+          <div class="label">Poincare Section (sampled every drive period)</div>
+          <canvas id="poincareCanvas" aria-label="poincare section"></canvas>
+        </div>
       </div>
     </section>
   </div>
@@ -327,7 +337,11 @@
       fullPhasePhiDotHistory: [],
       fullPhaseMaxAbsPhiDot: 0,
       preserveFullPhaseHistory: false,
-      maxSamples: 2200
+      poincarePhiWrappedHistory: [],
+      poincarePhiDotHistory: [],
+      nextPoincareSampleTime: 0,
+      maxSamples: 2200,
+      maxPoincareSamples: 2200
     };
 
     const params = {
@@ -361,9 +375,11 @@
     const pendulumCanvas = document.getElementById("pendulumCanvas");
     const timeCanvas = document.getElementById("timeCanvas");
     const phaseCanvas = document.getElementById("phaseCanvas");
+    const poincareCanvas = document.getElementById("poincareCanvas");
     const pCtx = pendulumCanvas.getContext("2d");
     const tCtx = timeCanvas.getContext("2d");
     const phCtx = phaseCanvas.getContext("2d");
+    const poCtx = poincareCanvas.getContext("2d");
 
     function buildControl(cfg) {
       const wrap = document.createElement("div");
@@ -447,6 +463,42 @@
         - ((params.omega0 ** 2) * Math.sin(phi));
     }
 
+    function getDrivePeriod() {
+      return TAU / Math.max(1e-9, Math.abs(params.omega));
+    }
+
+    function appendPoincareSample(phi, phiDot) {
+      state.poincarePhiWrappedHistory.push(wrapToPi(phi));
+      state.poincarePhiDotHistory.push(phiDot);
+
+      if (state.poincarePhiWrappedHistory.length > state.maxPoincareSamples) {
+        state.poincarePhiWrappedHistory.shift();
+        state.poincarePhiDotHistory.shift();
+      }
+    }
+
+    function resetPoincareHistory() {
+      state.poincarePhiWrappedHistory = [wrapToPi(state.phi)];
+      state.poincarePhiDotHistory = [state.phiDot];
+      state.nextPoincareSampleTime = state.t + getDrivePeriod();
+    }
+
+    function samplePoincareBetween(t0, phi0, phiDot0, t1, phi1, phiDot1) {
+      const period = getDrivePeriod();
+      const dt = t1 - t0;
+      if (!Number.isFinite(period) || period <= 0 || dt <= 0) {
+        return;
+      }
+
+      while (state.nextPoincareSampleTime <= t1 + 1e-12) {
+        const alpha = Math.max(0, Math.min(1, (state.nextPoincareSampleTime - t0) / dt));
+        const samplePhi = phi0 + alpha * (phi1 - phi0);
+        const samplePhiDot = phiDot0 + alpha * (phiDot1 - phiDot0);
+        appendPoincareSample(samplePhi, samplePhiDot);
+        state.nextPoincareSampleTime += period;
+      }
+    }
+
     function rk4Step(h) {
       const t0 = state.t;
       const y1 = state.phi;
@@ -497,6 +549,8 @@
         state.phiWrappedHistory.shift();
         state.phiDotHistory.shift();
       }
+
+      samplePoincareBetween(t0, y1, y2, state.t, state.phi, state.phiDot);
     }
 
     function resetSimulation() {
@@ -511,6 +565,7 @@
       state.fullPhasePhiWrappedHistory = [wrappedPhi];
       state.fullPhasePhiDotHistory = [state.phiDot];
       state.fullPhaseMaxAbsPhiDot = Math.abs(state.phiDot);
+      resetPoincareHistory();
       state.lastTimestamp = null;
     }
 
@@ -521,6 +576,7 @@
       state.fullPhasePhiWrappedHistory = [wrappedPhi];
       state.fullPhasePhiDotHistory = [state.phiDot];
       state.fullPhaseMaxAbsPhiDot = Math.abs(state.phiDot);
+      resetPoincareHistory();
     }
 
     function sizeCanvas(canvas) {
@@ -723,10 +779,45 @@
       phCtx.fill();
     }
 
+    function drawPoincarePlot() {
+      const { w, h, dpr } = sizeCanvas(poincareCanvas);
+      poCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      poCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(poCtx, w, h, "phi", "phiDot");
+      const n = state.poincarePhiWrappedHistory.length;
+      if (n < 1) {
+        return;
+      }
+
+      const dotBound = Math.max(4, Math.max(...state.poincarePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
+
+      poCtx.fillStyle = "rgba(22,163,74,0.55)";
+      for (let i = 0; i < n - 1; i++) {
+        const xNorm = (state.poincarePhiWrappedHistory[i] + Math.PI) / TAU;
+        const yNorm = (state.poincarePhiDotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+        poCtx.beginPath();
+        poCtx.arc(x, y, 1.8, 0, TAU);
+        poCtx.fill();
+      }
+
+      const latestXNorm = (state.poincarePhiWrappedHistory[n - 1] + Math.PI) / TAU;
+      const latestYNorm = (state.poincarePhiDotHistory[n - 1] + dotBound) / (2 * dotBound);
+      const latestX = frame.left + (frame.right - frame.left) * latestXNorm;
+      const latestY = frame.bottom - (frame.bottom - frame.top) * latestYNorm;
+      poCtx.fillStyle = "#14532d";
+      poCtx.beginPath();
+      poCtx.arc(latestX, latestY, 3.1, 0, TAU);
+      poCtx.fill();
+    }
+
     function render() {
       drawPendulum();
       drawTimePlot();
       drawPhasePlot();
+      drawPoincarePlot();
     }
 
     function tick(timestamp) {
