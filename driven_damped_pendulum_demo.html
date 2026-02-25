@@ -234,6 +234,35 @@
       display: block;
     }
 
+    .angle-preset-buttons {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+    }
+
+    .angle-btn {
+      flex: 1;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      border-radius: 8px;
+      padding: 7px 0;
+      font-size: 0.9rem;
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--ink);
+      font-family: var(--mono);
+    }
+
+    .angle-btn:hover {
+      background: var(--accent-2);
+      color: white;
+      border-color: var(--accent-2);
+    }
+
+    .angle-btn.active {
+      background: var(--accent-2);
+      color: white;
+      border-color: var(--accent-2);
+    }
+
     .note {
       margin-top: 10px;
       font-size: 0.8rem;
@@ -326,7 +355,7 @@
         Preserve full phase-plot history
       </label>
       <div class="note">
-        Click any numeric value to type it directly. Gamma updates live. Initial-condition sliders reset the state immediately.
+        Click any numeric value to type it directly. Gamma updates live. Use the angle buttons or the sliders in "Adjust other parameters" to set initial conditions.
       </div>
     </section>
 
@@ -390,8 +419,8 @@
 
     const controlsConfig = [
       { key: "gamma", label: "Drive scale gamma", min: 0, max: 2.5, step: 0.001, digits: 3, resetOnChange: false, advanced: false },
-      { key: "phi0", label: "Initial angle phi0 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
-      { key: "phiDot0", label: "Initial angular speed phiDot0 (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "phi0", label: "Initial angle phi0 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: true },
+      { key: "phiDot0", label: "Initial angular speed phiDot0 (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: true },
       { key: "beta", label: "Damping beta", min: 0, max: 8, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
       { key: "omega0", label: "Natural freq omega0 (rad/s)", min: 0.2, max: 20, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
       { key: "omega", label: "Drive freq omega (rad/s)", min: 0.2, max: 20, step: 0.01, digits: 2, resetOnChange: false, advanced: true },
@@ -473,11 +502,57 @@
       return wrap;
     }
 
+    const anglePresets = [
+      { label: "0", value: 0 },
+      { label: "\u03c0/2", value: Math.PI / 2 },
+      { label: "\u2212\u03c0/2", value: -Math.PI / 2 }
+    ];
+
+    function updateAngleButtonHighlight() {
+      document.querySelectorAll(".angle-btn").forEach((btn, i) => {
+        btn.classList.toggle("active", Math.abs(params.phi0 - anglePresets[i].value) < 1e-9);
+      });
+    }
+
+    function createAngleButtons() {
+      const wrap = document.createElement("div");
+      wrap.className = "control";
+
+      const label = document.createElement("label");
+      label.style.gridColumn = "1 / -1";
+      label.textContent = "Initial angle \u03c6\u2080";
+
+      const btnGroup = document.createElement("div");
+      btnGroup.className = "angle-preset-buttons";
+
+      anglePresets.forEach(({ label: btnLabel, value }) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "angle-btn";
+        btn.textContent = btnLabel;
+        btn.addEventListener("click", () => {
+          params.phi0 = value;
+          const slider = document.getElementById("phi0");
+          if (slider) slider.value = String(value);
+          const valueInput = document.getElementById("phi0Value");
+          if (valueInput) valueInput.value = formatNumber(value, 2);
+          updateAngleButtonHighlight();
+          resetSimulation();
+        });
+        btnGroup.appendChild(btn);
+      });
+
+      wrap.append(label, btnGroup);
+      primaryControlsContainer.appendChild(wrap);
+    }
+
     function createControls() {
+      createAngleButtons();
       controlsConfig.forEach((cfg) => {
         const targetContainer = cfg.advanced ? advancedControlsContainer : primaryControlsContainer;
         targetContainer.appendChild(buildControl(cfg));
       });
+      updateAngleButtonHighlight();
     }
 
     function formatNumber(value, digits = 2) {
