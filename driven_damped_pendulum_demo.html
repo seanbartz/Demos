@@ -4,6 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Driven Damped Pendulum Demo</title>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]] },
+      svg: { fontCache: "global" }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <style>
     :root {
       --bg-top: #0f172a;
@@ -338,8 +345,10 @@
     <section class="panel">
       <h1>Driven Damped Pendulum</h1>
       <div class="equation">
-        &phi;&#8243; + 2&beta;&phi;&#8242; + &omega;<sub>0</sub><sup>2</sup> sin(&phi;) =
-        &gamma;&omega;<sub>0</sub><sup>2</sup> cos(&omega;t)
+        \[
+        \ddot{\phi} + 2\beta\dot{\phi} + \omega_0^2\sin(\phi)
+        = \gamma \omega_0^2 \cos(\omega t)
+        \]
       </div>
       <div class="controls" id="primaryControls"></div>
       <details class="advanced-pane">
@@ -385,6 +394,9 @@
   <script>
     const TAU = Math.PI * 2;
     const PENDULUM_LENGTH_PX = 150;
+    const REFERENCE_DT = 0.005;
+    const REFERENCE_MAX_SAMPLES = 2200;
+    const REFERENCE_PHASE_TRAIL_SAMPLES = 1200;
 
     const state = {
       t: 0,
@@ -403,7 +415,8 @@
       poincarePhiWrappedHistory: [],
       poincarePhiDotHistory: [],
       nextPoincareSampleTime: 0,
-      maxSamples: 2200,
+      maxSamples: REFERENCE_MAX_SAMPLES,
+      phaseTrailSamples: REFERENCE_PHASE_TRAIL_SAMPLES,
       maxPoincareSamples: 2200
     };
 

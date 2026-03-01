@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Double Pendulum Demo</title>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]] },
+      svg: { fontCache: "global" }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <style>
+    :root {
+      --bg-top: #0f172a;
+      --bg-bottom: #1e293b;
+      --panel: rgba(248, 250, 252, 0.95);
+      --ink: #0f172a;
+      --accent: #ea580c;
+      --accent-2: #0284c7;
+      --radius: 14px;
+      --shadow: 0 14px 40px rgba(2, 6, 23, 0.28);
+      --mono: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+      --sans: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: #e2e8f0;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(234, 88, 12, 0.22) 0%, rgba(234, 88, 12, 0) 35%),
+        radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.22) 0%, rgba(2, 132, 199, 0) 42%),
+        linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .layout {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      backdrop-filter: blur(5px);
+    }
+
+    h1 {
+      font-size: 1.45rem;
+      margin: 0 0 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .equation {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      background: rgba(15, 23, 42, 0.06);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .advanced-pane {
+      margin-top: 10px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.05);
+      padding: 4px 8px 8px;
+    }
+
+    .advanced-pane summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #334155;
+      padding: 8px 2px;
+      user-select: none;
+    }
+
+    .advanced-pane[open] summary {
+      margin-bottom: 8px;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 12px;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 10px;
+    }
+
+    .control label {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .control .value-input {
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      color: #334155;
+      min-width: 78px;
+      text-align: right;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .control .value-input:focus {
+      outline: none;
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+    }
+
+    .control input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 6, 23, 0.2);
+    }
+
+    #toggle {
+      background: var(--accent-2);
+      color: white;
+      flex: 1;
+    }
+
+    #reset {
+      background: var(--accent);
+      color: white;
+      flex: 1;
+    }
+
+    .history-toggle {
+      margin-top: 8px;
+      font-size: 0.86rem;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-toggle input[type="checkbox"] {
+      accent-color: var(--accent-2);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .note {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #475569;
+    }
+
+    .viz {
+      display: grid;
+      gap: 12px;
+      grid-template-rows: auto auto;
+    }
+
+    .viz-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 320px;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .canvas-wrap.main {
+      min-height: 240px;
+    }
+
+    .label {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #334155;
+      background: rgba(248, 250, 252, 0.9);
+      border-radius: 8px;
+      padding: 4px 8px;
+      z-index: 2;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    @media (max-width: 1040px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    @media (min-width: 1041px) {
+      .viz {
+        height: calc(100vh - 80px);
+        grid-template-rows: 320px minmax(0, 1fr);
+      }
+
+      .viz > .canvas-wrap.main,
+      .viz-grid > .canvas-wrap {
+        height: 100%;
+        min-height: 0;
+      }
+
+      .viz-grid {
+        min-height: 0;
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .viz-grid { grid-template-columns: 1fr 1fr; }
+      .canvas-wrap { min-height: 300px; }
+      .canvas-wrap.main { min-height: 220px; }
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 12px; }
+      .panel { padding: 12px; }
+      .viz-grid { grid-template-columns: 1fr; }
+      .canvas-wrap { min-height: 240px; }
+      .canvas-wrap.main { min-height: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel">
+      <h1>Double Pendulum</h1>
+      <div class="equation">
+        \[
+        \begin{aligned}
+        2\ddot{\phi}_1 + \ddot{\phi}_2\cos(\phi_1-\phi_2) + \dot{\phi}_2^2\sin(\phi_1-\phi_2) + 2\omega_0^2\sin(\phi_1) &= 0 \\
+        \ddot{\phi}_2 + \ddot{\phi}_1\cos(\phi_1-\phi_2) - \dot{\phi}_1^2\sin(\phi_1-\phi_2) + \omega_0^2\sin(\phi_2) &= 0
+        \end{aligned}
+        \]
+      </div>
+
+      <div class="controls" id="primaryControls"></div>
+      <details class="advanced-pane">
+        <summary>Adjust other parameters</summary>
+        <div class="controls" id="advancedControls"></div>
+      </details>
+
+      <div class="buttons">
+        <button id="toggle" type="button">Pause</button>
+        <button id="reset" type="button">Reset</button>
+      </div>
+
+      <label class="history-toggle" for="preservePhaseHistory">
+        <input id="preservePhaseHistory" type="checkbox" />
+        Preserve full phase-plot history
+      </label>
+
+      <div class="note">
+        Click any numeric value to type it directly. Initial-condition sliders reset the state.
+      </div>
+    </section>
+
+    <section class="panel viz">
+      <div class="canvas-wrap main">
+        <div class="label">Real-time Animation</div>
+        <canvas id="pendulumCanvas" aria-label="double pendulum animation"></canvas>
+      </div>
+      <div class="viz-grid">
+        <div class="canvas-wrap">
+          <div class="label">Angles vs Time</div>
+          <canvas id="timeCanvas" aria-label="angle vs time"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <div class="label">Phase Portrait (phi1, phi1Dot)</div>
+          <canvas id="phaseCanvas" aria-label="phase portrait"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <div class="label">Poincare Section</div>
+          <canvas id="poincareCanvas" aria-label="poincare section"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const TAU = Math.PI * 2;
+    const LINK_LENGTH_PX = 100;
+    const REFERENCE_DT = 0.005;
+    const REFERENCE_MAX_SAMPLES = 2200;
+    const REFERENCE_PHASE_TRAIL_SAMPLES = 1200;
+
+    const state = {
+      t: 0,
+      phi1: Math.PI / 2,
+      phi1Dot: 0,
+      phi2: Math.PI / 2,
+      phi2Dot: 0,
+      running: true,
+      lastTimestamp: null,
+      timeHistory: [],
+      phi1History: [],
+      phi2History: [],
+      phasePhi1WrappedHistory: [],
+      phasePhi1DotHistory: [],
+      fullPhasePhi1WrappedHistory: [],
+      fullPhasePhi1DotHistory: [],
+      fullPhaseMaxAbsPhi1Dot: 0,
+      preserveFullPhaseHistory: false,
+      poincarePhi2WrappedHistory: [],
+      poincarePhi2DotHistory: [],
+      maxSamples: REFERENCE_MAX_SAMPLES,
+      phaseTrailSamples: REFERENCE_PHASE_TRAIL_SAMPLES,
+      maxPoincareSamples: 2200
+    };
+
+    const params = {
+      phi1_0: Math.PI / 2,
+      phi1Dot_0: 0,
+      phi2_0: Math.PI / 2,
+      phi2Dot_0: 0,
+      omega0: 3.13,
+      dt: 0.005,
+      speed: 1.0
+    };
+
+    const controlsConfig = [
+      { key: "phi1_0", label: "Initial phi1 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "phi1Dot_0", label: "Initial phi1Dot (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "phi2_0", label: "Initial phi2 (rad)", min: -Math.PI, max: Math.PI, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "phi2Dot_0", label: "Initial phi2Dot (rad/s)", min: -12, max: 12, step: 0.01, digits: 2, resetOnChange: true, advanced: false },
+      { key: "omega0", label: "omega0 (rad/s)", min: 0.5, max: 8, step: 0.01, digits: 2, resetOnChange: false, advanced: false },
+      { key: "dt", label: "Integrator step dt (s)", min: 0.001, max: 0.03, step: 0.001, digits: 3, resetOnChange: false, advanced: true },
+      { key: "speed", label: "Simulation speed", min: 0.1, max: 6, step: 0.1, digits: 1, resetOnChange: false, advanced: true }
+    ];
+
+    const primaryControlsContainer = document.getElementById("primaryControls");
+    const advancedControlsContainer = document.getElementById("advancedControls");
+    const toggleBtn = document.getElementById("toggle");
+    const resetBtn = document.getElementById("reset");
+    const preservePhaseHistoryCheckbox = document.getElementById("preservePhaseHistory");
+
+    const pendulumCanvas = document.getElementById("pendulumCanvas");
+    const timeCanvas = document.getElementById("timeCanvas");
+    const phaseCanvas = document.getElementById("phaseCanvas");
+    const poincareCanvas = document.getElementById("poincareCanvas");
+    const pCtx = pendulumCanvas.getContext("2d");
+    const tCtx = timeCanvas.getContext("2d");
+    const phCtx = phaseCanvas.getContext("2d");
+    const poCtx = poincareCanvas.getContext("2d");
+
+    function formatNumber(value, digits = 2) {
+      return Number(value).toFixed(digits);
+    }
+
+    function wrapToPi(angle) {
+      const shifted = (angle + Math.PI) % TAU;
+      const wrapped = shifted < 0 ? shifted + TAU : shifted;
+      return wrapped - Math.PI;
+    }
+
+    function updateHistoryCapacityFromDt() {
+      const dtSafe = Math.max(1e-6, params.dt);
+      const scale = REFERENCE_DT / dtSafe;
+      state.maxSamples = Math.max(REFERENCE_MAX_SAMPLES, Math.round(REFERENCE_MAX_SAMPLES * scale));
+      state.phaseTrailSamples = Math.max(REFERENCE_PHASE_TRAIL_SAMPLES, Math.round(REFERENCE_PHASE_TRAIL_SAMPLES * scale));
+    }
+
+    function trimRollingHistoriesToCapacity() {
+      const timeExcess = state.timeHistory.length - state.maxSamples;
+      if (timeExcess > 0) {
+        state.timeHistory.splice(0, timeExcess);
+        state.phi1History.splice(0, timeExcess);
+        state.phi2History.splice(0, timeExcess);
+      }
+
+      const phaseExcess = state.phasePhi1WrappedHistory.length - state.maxSamples;
+      if (phaseExcess > 0) {
+        state.phasePhi1WrappedHistory.splice(0, phaseExcess);
+        state.phasePhi1DotHistory.splice(0, phaseExcess);
+      }
+    }
+
+    function createControl(cfg) {
+      const wrap = document.createElement("div");
+      wrap.className = "control";
+
+      const label = document.createElement("label");
+      label.setAttribute("for", cfg.key);
+      label.textContent = cfg.label;
+
+      const valueInput = document.createElement("input");
+      valueInput.type = "number";
+      valueInput.className = "value-input";
+      valueInput.id = cfg.key + "Value";
+      valueInput.min = String(cfg.min);
+      valueInput.max = String(cfg.max);
+      valueInput.step = String(cfg.step);
+      valueInput.value = formatNumber(params[cfg.key], cfg.digits);
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.id = cfg.key;
+      slider.min = String(cfg.min);
+      slider.max = String(cfg.max);
+      slider.step = String(cfg.step);
+      slider.value = String(params[cfg.key]);
+
+      const applyValue = (candidateValue) => {
+        if (!Number.isFinite(candidateValue)) {
+          valueInput.value = formatNumber(params[cfg.key], cfg.digits);
+          return;
+        }
+
+        const v = Math.min(cfg.max, Math.max(cfg.min, candidateValue));
+        params[cfg.key] = v;
+        slider.value = String(v);
+        valueInput.value = formatNumber(v, cfg.digits);
+
+        if (cfg.key === "dt") {
+          updateHistoryCapacityFromDt();
+          trimRollingHistoriesToCapacity();
+        }
+
+        if (cfg.resetOnChange) {
+          resetSimulation();
+        } else {
+          resetPhaseAndPoincareHistory();
+        }
+      };
+
+      slider.addEventListener("input", () => applyValue(Number(slider.value)));
+      valueInput.addEventListener("change", () => applyValue(Number(valueInput.value)));
+      valueInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          valueInput.blur();
+        }
+      });
+
+      wrap.append(label, valueInput, slider);
+      return wrap;
+    }
+
+    function createControls() {
+      controlsConfig.forEach((cfg) => {
+        const target = cfg.advanced ? advancedControlsContainer : primaryControlsContainer;
+        target.appendChild(createControl(cfg));
+      });
+    }
+
+    function appendPoincareSample(phi2, phi2Dot) {
+      state.poincarePhi2WrappedHistory.push(wrapToPi(phi2));
+      state.poincarePhi2DotHistory.push(phi2Dot);
+      if (state.poincarePhi2WrappedHistory.length > state.maxPoincareSamples) {
+        state.poincarePhi2WrappedHistory.shift();
+        state.poincarePhi2DotHistory.shift();
+      }
+    }
+
+    function samplePoincareSection(
+      phi1PrevW,
+      phi1CurrW,
+      phi2Prev,
+      phi2Curr,
+      phi1DotPrev,
+      phi1DotCurr,
+      phi2DotPrev,
+      phi2DotCurr
+    ) {
+      const deltaW = phi1CurrW - phi1PrevW;
+      if (Math.abs(deltaW) > Math.PI) {
+        return;
+      }
+      if (!(phi1PrevW < 0 && phi1CurrW >= 0)) {
+        return;
+      }
+
+      const alpha = -phi1PrevW / Math.max(1e-9, (phi1CurrW - phi1PrevW));
+      const phi1DotCross = phi1DotPrev + alpha * (phi1DotCurr - phi1DotPrev);
+      if (phi1DotCross <= 0) {
+        return;
+      }
+
+      const phi2Cross = phi2Prev + alpha * (phi2Curr - phi2Prev);
+      const phi2DotCross = phi2DotPrev + alpha * (phi2DotCurr - phi2DotPrev);
+      appendPoincareSample(phi2Cross, phi2DotCross);
+    }
+
+    function accelerations(phi1, phi1Dot, phi2, phi2Dot) {
+      const delta = phi1 - phi2;
+      const c = Math.cos(delta);
+      const s = Math.sin(delta);
+      const omega0Sq = params.omega0 ** 2;
+
+      const b1 = -(phi2Dot ** 2) * s - 2 * omega0Sq * Math.sin(phi1);
+      const b2 = (phi1Dot ** 2) * s - omega0Sq * Math.sin(phi2);
+      const det = 2 - c * c;
+
+      const phi1DDot = (b1 - b2 * c) / det;
+      const phi2DDot = (2 * b2 - b1 * c) / det;
+      return { phi1DDot, phi2DDot };
+    }
+
+    function deriv(stateVec) {
+      const [phi1, phi1Dot, phi2, phi2Dot] = stateVec;
+      const { phi1DDot, phi2DDot } = accelerations(phi1, phi1Dot, phi2, phi2Dot);
+      return [phi1Dot, phi1DDot, phi2Dot, phi2DDot];
+    }
+
+    function rk4Step(h) {
+      const y = [state.phi1, state.phi1Dot, state.phi2, state.phi2Dot];
+
+      const k1 = deriv(y);
+      const y2 = y.map((v, i) => v + 0.5 * h * k1[i]);
+      const k2 = deriv(y2);
+      const y3 = y.map((v, i) => v + 0.5 * h * k2[i]);
+      const k3 = deriv(y3);
+      const y4 = y.map((v, i) => v + h * k3[i]);
+      const k4 = deriv(y4);
+
+      const phi1Prev = state.phi1;
+      const phi2Prev = state.phi2;
+      const phi1DotPrev = state.phi1Dot;
+      const phi2DotPrev = state.phi2Dot;
+      const phi1PrevW = wrapToPi(phi1Prev);
+
+      state.phi1 += (h / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]);
+      state.phi1Dot += (h / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]);
+      state.phi2 += (h / 6) * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]);
+      state.phi2Dot += (h / 6) * (k1[3] + 2 * k2[3] + 2 * k3[3] + k4[3]);
+      state.t += h;
+
+      state.timeHistory.push(state.t);
+      state.phi1History.push(state.phi1);
+      state.phi2History.push(state.phi2);
+
+      const phi1Wrapped = wrapToPi(state.phi1);
+      state.phasePhi1WrappedHistory.push(phi1Wrapped);
+      state.phasePhi1DotHistory.push(state.phi1Dot);
+
+      state.fullPhasePhi1WrappedHistory.push(phi1Wrapped);
+      state.fullPhasePhi1DotHistory.push(state.phi1Dot);
+      state.fullPhaseMaxAbsPhi1Dot = Math.max(state.fullPhaseMaxAbsPhi1Dot, Math.abs(state.phi1Dot));
+
+      if (state.timeHistory.length > state.maxSamples) {
+        state.timeHistory.shift();
+        state.phi1History.shift();
+        state.phi2History.shift();
+      }
+      if (state.phasePhi1WrappedHistory.length > state.maxSamples) {
+        state.phasePhi1WrappedHistory.shift();
+        state.phasePhi1DotHistory.shift();
+      }
+
+      samplePoincareSection(
+        phi1PrevW,
+        phi1Wrapped,
+        phi2Prev,
+        state.phi2,
+        phi1DotPrev,
+        state.phi1Dot,
+        phi2DotPrev,
+        state.phi2Dot
+      );
+    }
+
+    function resetSimulation() {
+      updateHistoryCapacityFromDt();
+      state.t = 0;
+      state.phi1 = params.phi1_0;
+      state.phi1Dot = params.phi1Dot_0;
+      state.phi2 = params.phi2_0;
+      state.phi2Dot = params.phi2Dot_0;
+
+      const phi1Wrapped = wrapToPi(state.phi1);
+      state.timeHistory = [0];
+      state.phi1History = [state.phi1];
+      state.phi2History = [state.phi2];
+      state.phasePhi1WrappedHistory = [phi1Wrapped];
+      state.phasePhi1DotHistory = [state.phi1Dot];
+      state.fullPhasePhi1WrappedHistory = [phi1Wrapped];
+      state.fullPhasePhi1DotHistory = [state.phi1Dot];
+      state.fullPhaseMaxAbsPhi1Dot = Math.abs(state.phi1Dot);
+      state.poincarePhi2WrappedHistory = [];
+      state.poincarePhi2DotHistory = [];
+      state.lastTimestamp = null;
+    }
+
+    function resetPhaseAndPoincareHistory() {
+      const phi1Wrapped = wrapToPi(state.phi1);
+      state.phasePhi1WrappedHistory = [phi1Wrapped];
+      state.phasePhi1DotHistory = [state.phi1Dot];
+      state.fullPhasePhi1WrappedHistory = [phi1Wrapped];
+      state.fullPhasePhi1DotHistory = [state.phi1Dot];
+      state.fullPhaseMaxAbsPhi1Dot = Math.abs(state.phi1Dot);
+      state.poincarePhi2WrappedHistory = [];
+      state.poincarePhi2DotHistory = [];
+    }
+
+    function sizeCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      return { w: canvas.width / dpr, h: canvas.height / dpr, dpr };
+    }
+
+    function drawAxes(ctx, w, h, xLabel, yLabel) {
+      const pad = 30;
+      const left = pad;
+      const right = w - pad * 0.5;
+      const top = pad * 0.5;
+      const bottom = h - pad;
+
+      ctx.strokeStyle = "rgba(15,23,42,0.18)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, top, right - left, bottom - top);
+
+      ctx.strokeStyle = "rgba(15,23,42,0.09)";
+      for (let i = 1; i < 5; i++) {
+        const y = top + ((bottom - top) * i) / 5;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#334155";
+      ctx.font = "11px " + getComputedStyle(document.body).getPropertyValue("--mono");
+      ctx.fillText(xLabel, right - 42, bottom + 16);
+      ctx.save();
+      ctx.translate(left - 18, top + 22);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+
+      return { left, right, top, bottom };
+    }
+
+    function drawPendulum() {
+      const { w, h, dpr } = sizeCanvas(pendulumCanvas);
+      pCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pCtx.clearRect(0, 0, w, h);
+
+      const pivotX = w * 0.5;
+      const pivotY = h * 0.5;
+      const L = Math.min(LINK_LENGTH_PX, h * 0.22);
+      const x1 = pivotX + L * Math.sin(state.phi1);
+      const y1 = pivotY + L * Math.cos(state.phi1);
+      const x2 = x1 + L * Math.sin(state.phi2);
+      const y2 = y1 + L * Math.cos(state.phi2);
+
+      pCtx.strokeStyle = "#64748b";
+      pCtx.lineWidth = 2;
+      pCtx.beginPath();
+      pCtx.moveTo(0, pivotY);
+      pCtx.lineTo(w, pivotY);
+      pCtx.stroke();
+
+      const n = state.phi1History.length;
+      const trailLen = Math.min(120, n);
+      if (trailLen > 1) {
+        pCtx.strokeStyle = "rgba(2,132,199,0.45)";
+        pCtx.lineWidth = 1.3;
+        pCtx.beginPath();
+        for (let i = n - trailLen; i < n; i++) {
+          const tx1 = pivotX + L * Math.sin(state.phi1History[i]);
+          const ty1 = pivotY + L * Math.cos(state.phi1History[i]);
+          const tx2 = tx1 + L * Math.sin(state.phi2History[i]);
+          const ty2 = ty1 + L * Math.cos(state.phi2History[i]);
+          if (i === n - trailLen) {
+            pCtx.moveTo(tx2, ty2);
+          } else {
+            pCtx.lineTo(tx2, ty2);
+          }
+        }
+        pCtx.stroke();
+      }
+
+      pCtx.strokeStyle = "#0f172a";
+      pCtx.lineWidth = 3.7;
+      pCtx.beginPath();
+      pCtx.moveTo(pivotX, pivotY);
+      pCtx.lineTo(x1, y1);
+      pCtx.lineTo(x2, y2);
+      pCtx.stroke();
+
+      const bob1 = pCtx.createRadialGradient(x1 - 4, y1 - 6, 3, x1, y1, 15);
+      bob1.addColorStop(0, "#60a5fa");
+      bob1.addColorStop(1, "#0369a1");
+      pCtx.fillStyle = bob1;
+      pCtx.beginPath();
+      pCtx.arc(x1, y1, 11.5, 0, TAU);
+      pCtx.fill();
+
+      const bob2 = pCtx.createRadialGradient(x2 - 4, y2 - 6, 3, x2, y2, 18);
+      bob2.addColorStop(0, "#fb923c");
+      bob2.addColorStop(1, "#c2410c");
+      pCtx.fillStyle = bob2;
+      pCtx.beginPath();
+      pCtx.arc(x2, y2, 13.5, 0, TAU);
+      pCtx.fill();
+
+      pCtx.fillStyle = "#0f172a";
+      pCtx.beginPath();
+      pCtx.arc(pivotX, pivotY, 5, 0, TAU);
+      pCtx.fill();
+    }
+
+    function drawWrappedTimeSeries(ctx, frame, tMin, windowSecs, wrappedValues, color) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+
+      let started = false;
+      let prevWrapped = 0;
+      for (let i = 0; i < state.timeHistory.length; i++) {
+        const tVal = state.timeHistory[i];
+        if (tVal < tMin) {
+          continue;
+        }
+
+        const x = frame.left + (frame.right - frame.left) * ((tVal - tMin) / Math.max(1e-9, windowSecs));
+        const yNorm = (wrappedValues[i] + Math.PI) / TAU;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else if (Math.abs(wrappedValues[i] - prevWrapped) > Math.PI) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        prevWrapped = wrappedValues[i];
+      }
+      ctx.stroke();
+    }
+
+    function drawTimePlot() {
+      const { w, h, dpr } = sizeCanvas(timeCanvas);
+      tCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      tCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(tCtx, w, h, "t", "phi");
+      const n = state.timeHistory.length;
+      if (n < 2) {
+        return;
+      }
+
+      const tMax = state.timeHistory[n - 1];
+      const windowSecs = 14;
+      const tMin = Math.max(0, tMax - windowSecs);
+      const phi1Wrapped = state.phi1History.map((v) => wrapToPi(v));
+      const phi2Wrapped = state.phi2History.map((v) => wrapToPi(v));
+
+      drawWrappedTimeSeries(tCtx, frame, tMin, windowSecs, phi1Wrapped, "#0284c7");
+      drawWrappedTimeSeries(tCtx, frame, tMin, windowSecs, phi2Wrapped, "#ea580c");
+    }
+
+    function drawPhasePlot() {
+      const { w, h, dpr } = sizeCanvas(phaseCanvas);
+      phCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      phCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(phCtx, w, h, "phi1", "phi1Dot");
+      const phasePhiHistory = state.preserveFullPhaseHistory
+        ? state.fullPhasePhi1WrappedHistory
+        : state.phasePhi1WrappedHistory;
+      const phasePhiDotHistory = state.preserveFullPhaseHistory
+        ? state.fullPhasePhi1DotHistory
+        : state.phasePhi1DotHistory;
+      const n = phasePhiHistory.length;
+      if (n < 2) {
+        return;
+      }
+
+      const dotBound = state.preserveFullPhaseHistory
+        ? Math.max(4, state.fullPhaseMaxAbsPhi1Dot * 1.1)
+        : Math.max(4, Math.max(...phasePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
+      const start = state.preserveFullPhaseHistory ? 0 : Math.max(0, n - state.phaseTrailSamples);
+
+      phCtx.strokeStyle = "#7c3aed";
+      phCtx.lineWidth = 1.2;
+      phCtx.beginPath();
+      let prevWrapped = 0;
+
+      for (let i = start; i < n; i++) {
+        const wrapped = phasePhiHistory[i];
+        const xNorm = (wrapped + Math.PI) / TAU;
+        const yNorm = (phasePhiDotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+
+        if (i === start) {
+          phCtx.moveTo(x, y);
+        } else if (Math.abs(wrapped - prevWrapped) > Math.PI) {
+          phCtx.moveTo(x, y);
+        } else {
+          phCtx.lineTo(x, y);
+        }
+        prevWrapped = wrapped;
+      }
+      phCtx.stroke();
+
+      const xNorm = (wrapToPi(state.phi1) + Math.PI) / TAU;
+      const yNorm = (state.phi1Dot + dotBound) / (2 * dotBound);
+      const x = frame.left + (frame.right - frame.left) * xNorm;
+      const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+      phCtx.fillStyle = "#0f172a";
+      phCtx.beginPath();
+      phCtx.arc(x, y, 3.1, 0, TAU);
+      phCtx.fill();
+    }
+
+    function drawPoincarePlot() {
+      const { w, h, dpr } = sizeCanvas(poincareCanvas);
+      poCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      poCtx.clearRect(0, 0, w, h);
+
+      const frame = drawAxes(poCtx, w, h, "phi2", "phi2Dot");
+      const n = state.poincarePhi2WrappedHistory.length;
+      if (n < 1) {
+        return;
+      }
+
+      const dotBound = Math.max(4, Math.max(...state.poincarePhi2DotHistory.map((v) => Math.abs(v))) * 1.1);
+      const highlightCount = Math.min(6, n);
+      const backgroundCount = n - highlightCount;
+
+      poCtx.fillStyle = "rgba(22,163,74,0.35)";
+      for (let i = 0; i < backgroundCount; i++) {
+        const xNorm = (state.poincarePhi2WrappedHistory[i] + Math.PI) / TAU;
+        const yNorm = (state.poincarePhi2DotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+        poCtx.beginPath();
+        poCtx.arc(x, y, 1.7, 0, TAU);
+        poCtx.fill();
+      }
+
+      for (let j = 0; j < highlightCount; j++) {
+        const i = n - highlightCount + j;
+        const weight = (j + 1) / highlightCount;
+        const xNorm = (state.poincarePhi2WrappedHistory[i] + Math.PI) / TAU;
+        const yNorm = (state.poincarePhi2DotHistory[i] + dotBound) / (2 * dotBound);
+        const x = frame.left + (frame.right - frame.left) * xNorm;
+        const y = frame.bottom - (frame.bottom - frame.top) * yNorm;
+        const radius = 2.0 + (2.4 * weight);
+        const alpha = 0.42 + (0.58 * weight);
+        const lightness = 60 - (36 * weight);
+
+        poCtx.fillStyle = `hsla(138, 72%, ${lightness}%, ${alpha})`;
+        poCtx.beginPath();
+        poCtx.arc(x, y, radius, 0, TAU);
+        poCtx.fill();
+      }
+    }
+
+    function render() {
+      drawPendulum();
+      drawTimePlot();
+      drawPhasePlot();
+      drawPoincarePlot();
+    }
+
+    function tick(timestamp) {
+      if (state.lastTimestamp == null) {
+        state.lastTimestamp = timestamp;
+      }
+      const realDt = Math.min(0.05, (timestamp - state.lastTimestamp) / 1000);
+      state.lastTimestamp = timestamp;
+
+      if (state.running) {
+        let remaining = realDt * params.speed;
+        while (remaining > 0) {
+          const h = Math.min(params.dt, remaining);
+          rk4Step(h);
+          remaining -= h;
+        }
+      }
+
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    toggleBtn.addEventListener("click", () => {
+      state.running = !state.running;
+      toggleBtn.textContent = state.running ? "Pause" : "Resume";
+    });
+
+    resetBtn.addEventListener("click", () => {
+      resetSimulation();
+      if (!state.running) {
+        render();
+      }
+    });
+
+    preservePhaseHistoryCheckbox.addEventListener("change", () => {
+      state.preserveFullPhaseHistory = preservePhaseHistoryCheckbox.checked;
+      render();
+    });
+
+    window.addEventListener("resize", () => render());
+
+    createControls();
+    resetSimulation();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
