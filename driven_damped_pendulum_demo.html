@@ -491,6 +491,10 @@
         params[cfg.key] = v;
         slider.value = String(v);
         valueInput.value = formatNumber(v, cfg.digits);
+        if (cfg.key === "dt") {
+          updateHistoryCapacityFromDt();
+          trimRollingHistoriesToCapacity();
+        }
         if (cfg.resetOnChange) {
           resetSimulation();
         } else {
@@ -571,6 +575,33 @@
 
     function formatNumber(value, digits = 2) {
       return Number(value).toFixed(digits);
+    }
+
+    function updateHistoryCapacityFromDt() {
+      const dtSafe = Math.max(1e-6, params.dt);
+      const scale = REFERENCE_DT / dtSafe;
+      state.maxSamples = Math.max(
+        REFERENCE_MAX_SAMPLES,
+        Math.round(REFERENCE_MAX_SAMPLES * scale)
+      );
+      state.phaseTrailSamples = Math.max(
+        REFERENCE_PHASE_TRAIL_SAMPLES,
+        Math.round(REFERENCE_PHASE_TRAIL_SAMPLES * scale)
+      );
+    }
+
+    function trimRollingHistoriesToCapacity() {
+      const timeExcess = state.timeHistory.length - state.maxSamples;
+      if (timeExcess > 0) {
+        state.timeHistory.splice(0, timeExcess);
+        state.phiHistory.splice(0, timeExcess);
+      }
+
+      const phaseExcess = state.phiWrappedHistory.length - state.maxSamples;
+      if (phaseExcess > 0) {
+        state.phiWrappedHistory.splice(0, phaseExcess);
+        state.phiDotHistory.splice(0, phaseExcess);
+      }
     }
 
     function wrapToPi(angle) {
@@ -676,6 +707,7 @@
     }
 
     function resetSimulation() {
+      updateHistoryCapacityFromDt();
       state.t = 0;
       state.phi = params.phi0;
       state.phiDot = params.phiDot0;
@@ -866,7 +898,7 @@
       const dotBound = state.preserveFullPhaseHistory
         ? Math.max(4, state.fullPhaseMaxAbsPhiDot * 1.1)
         : Math.max(4, Math.max(...phasePhiDotHistory.map((v) => Math.abs(v))) * 1.1);
-      const start = state.preserveFullPhaseHistory ? 0 : Math.max(0, n - 1200);
+      const start = state.preserveFullPhaseHistory ? 0 : Math.max(0, n - state.phaseTrailSamples);
 
       phCtx.strokeStyle = "#ea580c";
       phCtx.lineWidth = 1.2;
