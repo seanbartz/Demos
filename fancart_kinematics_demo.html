@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fan Cart Kinematics Demo</title>
+  <style>
+    :root {
+      --bg-top: #0f172a;
+      --bg-bottom: #1e293b;
+      --panel: rgba(248, 250, 252, 0.95);
+      --ink: #0f172a;
+      --accent: #ea580c;
+      --accent-2: #0284c7;
+      --radius: 14px;
+      --shadow: 0 14px 40px rgba(2, 6, 23, 0.28);
+      --mono: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+      --sans: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+      --grid: rgba(15, 23, 42, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: #e2e8f0;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(234, 88, 12, 0.22) 0%, rgba(234, 88, 12, 0) 35%),
+        radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.22) 0%, rgba(2, 132, 199, 0) 42%),
+        linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .layout {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      backdrop-filter: blur(5px);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.45rem;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 12px;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+
+    .equation {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      background: rgba(15, 23, 42, 0.06);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 14px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .control {
+      padding: 10px;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .control select {
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.88);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      color: #0f172a;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .toggle-row {
+      margin-top: 8px;
+      font-size: 0.86rem;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      accent-color: var(--accent-2);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      flex: 1;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 6, 23, 0.2);
+    }
+
+    #toggle {
+      background: var(--accent-2);
+      color: #fff;
+    }
+
+    #reset {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .readout {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      display: grid;
+      gap: 4px;
+      color: #1e293b;
+    }
+
+    .viz {
+      display: grid;
+      gap: 12px;
+      grid-template-rows: auto 1fr;
+    }
+
+    .viz-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 520px;
+      max-height: 42vh;
+      background: rgba(15, 23, 42, 0.04);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .canvas-wrap.main {
+      min-height: 130px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .graph-title {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: #334155;
+      background: rgba(248, 250, 252, 0.8);
+      padding: 3px 6px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    @media (max-width: 1150px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .viz-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel">
+      <h1>Fan Cart Kinematics</h1>
+      <p class="subtitle">Real-time x(t), v(t), and a(t) for a fan cart.</p>
+
+      <div class="controls">
+        <div class="control">
+          <label for="x0">Initial position x<sub>0</sub> (m)</label>
+          <select id="x0">
+            <option value="-0.5">-0.5</option>
+            <option value="-0.25">-0.25</option>
+            <option value="0" selected>0.0</option>
+            <option value="0.25">0.25</option>
+            <option value="0.5">0.5</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="vDir">Initial velocity direction</label>
+          <select id="vDir">
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="vMag">Initial velocity magnitude</label>
+          <select id="vMag">
+            <option value="fast">Fast</option>
+            <option value="slow">Slow</option>
+            <option value="zero">Zero</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="fanDir">Fan acceleration direction</label>
+          <select id="fanDir">
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="fanPower">Fan power</label>
+          <select id="fanPower">
+            <option value="high">High</option>
+            <option value="low">Low</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">Pause</button>
+        <button id="reset">Reset</button>
+      </div>
+      <label class="toggle-row">
+        <input id="showStreamers" type="checkbox" checked />
+        Show fan streamers
+      </label>
+
+      <div class="readout">
+        <div id="timeReadout">t = 0.00 s</div>
+        <div id="xReadout">x = 0.00 m</div>
+        <div id="vReadout">v = 0.00 m/s</div>
+        <div id="aReadout">a = 0.00 m/s²</div>
+      </div>
+    </section>
+
+    <section class="viz">
+      <div class="panel canvas-wrap main">
+        <canvas id="simCanvas" aria-label="Fan cart simulation"></canvas>
+      </div>
+
+      <div class="viz-grid">
+        <div class="panel canvas-wrap">
+          <div class="graph-title">Displacement x(t)</div>
+          <canvas id="xCanvas"></canvas>
+        </div>
+        <div class="panel canvas-wrap">
+          <div class="graph-title">Velocity v(t)</div>
+          <canvas id="vCanvas"></canvas>
+        </div>
+        <div class="panel canvas-wrap">
+          <div class="graph-title">Acceleration a(t)</div>
+          <canvas id="aCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const DT = 1 / 120;
+
+    const V_MAG = { fast: 0.42, slow: 0.2, zero: 0.0 };
+    const A_MAG = { high: 0.14, low: 0.07, off: 0.0 };
+    const DEFAULT_GRAPH_LIMITS = {
+      x: { min: -1.5, max: 1.5 },
+      v: { min: -1.5, max: 1.5 },
+      a: { min: -1.0, max: 1.0 }
+    };
+
+    const state = {
+      t: 0,
+      x: 0,
+      v: 0,
+      a: 0,
+      running: false,
+      accumulator: 0,
+      trackViewMeters: 2.0
+    };
+
+    const series = { t: [], x: [], v: [], a: [] };
+
+    const els = {
+      vDir: document.getElementById("vDir"),
+      vMag: document.getElementById("vMag"),
+      x0: document.getElementById("x0"),
+      fanDir: document.getElementById("fanDir"),
+      fanPower: document.getElementById("fanPower"),
+      showStreamers: document.getElementById("showStreamers"),
+      toggle: document.getElementById("toggle"),
+      reset: document.getElementById("reset"),
+      timeReadout: document.getElementById("timeReadout"),
+      xReadout: document.getElementById("xReadout"),
+      vReadout: document.getElementById("vReadout"),
+      aReadout: document.getElementById("aReadout")
+    };
+
+    const canvases = {
+      sim: document.getElementById("simCanvas"),
+      x: document.getElementById("xCanvas"),
+      v: document.getElementById("vCanvas"),
+      a: document.getElementById("aCanvas")
+    };
+
+    const ctx = {
+      sim: canvases.sim.getContext("2d"),
+      x: canvases.x.getContext("2d"),
+      v: canvases.v.getContext("2d"),
+      a: canvases.a.getContext("2d")
+    };
+
+    const cartImage = new Image();
+    cartImage.src = "fancart.png";
+
+    function dirSign(direction) {
+      return direction === "left" ? -1 : 1;
+    }
+
+    function currentAcceleration() {
+      return dirSign(els.fanDir.value) * A_MAG[els.fanPower.value];
+    }
+
+    function resetSimulation() {
+      state.t = 0;
+      state.x = Number(els.x0.value);
+      state.v = dirSign(els.vDir.value) * V_MAG[els.vMag.value];
+      state.a = currentAcceleration();
+      state.accumulator = 0;
+      state.trackViewMeters = 2.0;
+
+      series.t = [0];
+      series.x = [state.x];
+      series.v = [state.v];
+      series.a = [state.a];
+
+      updateReadout();
+      drawAll();
+    }
+
+    function stepEulerCromer(dt) {
+      state.a = currentAcceleration();
+      state.v += state.a * dt;
+      state.x += state.v * dt;
+      state.t += dt;
+
+      series.t.push(state.t);
+      series.x.push(state.x);
+      series.v.push(state.v);
+      series.a.push(state.a);
+
+    }
+
+    function updateReadout() {
+      els.timeReadout.textContent = `t = ${state.t.toFixed(2)} s`;
+      els.xReadout.textContent = `x = ${state.x.toFixed(3)} m`;
+      els.vReadout.textContent = `v = ${state.v.toFixed(3)} m/s`;
+      els.aReadout.textContent = `a = ${state.a.toFixed(3)} m/s²`;
+    }
+
+    function resizeCanvasToDisplaySize(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.floor(rect.width * ratio));
+      const h = Math.max(1, Math.floor(rect.height * ratio));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+
+    function drawSim() {
+      const c = canvases.sim;
+      const g = ctx.sim;
+      resizeCanvasToDisplaySize(c);
+
+      const w = c.width;
+      const h = c.height;
+
+      g.clearRect(0, 0, w, h);
+      g.fillStyle = "#f8fafc";
+      g.fillRect(0, 0, w, h);
+
+      const trackY = Math.round(h * 0.72);
+      g.strokeStyle = "#1e293b";
+      g.lineWidth = 2 * (window.devicePixelRatio || 1);
+      g.beginPath();
+      g.moveTo(20, trackY);
+      g.lineTo(w - 20, trackY);
+      g.stroke();
+
+      const cartLengthMeters = 0.2;
+      let visibleTrackMeters = state.trackViewMeters;
+      const centerX = w * 0.5;
+      const margin = 40;
+      const targetHalfRange = Math.abs(state.x) + cartLengthMeters * 0.7;
+      if (targetHalfRange > visibleTrackMeters / 2) {
+        visibleTrackMeters = Math.max(visibleTrackMeters, targetHalfRange * 2.2);
+        state.trackViewMeters = visibleTrackMeters;
+      }
+      const pxPerMeter = (w - 2 * margin) / visibleTrackMeters;
+      const cartW = cartLengthMeters * pxPerMeter;
+      const cartX = centerX + state.x * pxPerMeter;
+      const cartH = cartW * 0.6;
+      const cartY = trackY - cartH - 8;
+
+      g.fillStyle = "#334155";
+      g.strokeStyle = "#475569";
+      g.lineWidth = 1 * (window.devicePixelRatio || 1);
+      g.font = `${10 * (window.devicePixelRatio || 1)}px ${getComputedStyle(document.documentElement).getPropertyValue("--mono")}`;
+      g.textAlign = "center";
+      g.textBaseline = "top";
+      const halfRange = visibleTrackMeters / 2;
+      const maxTickIndex = Math.floor(halfRange / 0.1);
+      for (let i = -maxTickIndex; i <= maxTickIndex; i += 1) {
+        const m = i / 10;
+        const markX = centerX + m * pxPerMeter;
+        if (markX < margin - 2 || markX > w - margin + 2) continue;
+        const isMajor = i % 5 === 0;
+        const markLen = isMajor ? 14 : 8;
+        g.beginPath();
+        g.moveTo(markX, trackY - markLen / 2);
+        g.lineTo(markX, trackY + markLen / 2);
+        g.stroke();
+        if (isMajor) {
+          g.fillText(`${m.toFixed(1)} m`, markX, trackY + 10);
+        }
+      }
+
+      function drawStreamers() {
+        const power = els.fanPower.value;
+        if (!els.showStreamers.checked || power === "off") return;
+        const ratio = window.devicePixelRatio || 1;
+        const dir = els.fanDir.value === "left" ? 1 : -1;
+        const strength = power === "high" ? 1 : 0.6;
+        const baseLen = (42 + 26 * strength) * ratio;
+        const amp = (8 + 10 * strength) * ratio;
+        const t = state.t;
+        const streamerCount = 4;
+        const baseX = cartX + dir * (cartW * 0.44);
+        const topY = cartY + cartH * 0.16;
+        const spacing = (cartH * 0.62) / (streamerCount - 1);
+
+        g.lineWidth = (2.2 + 1.3 * strength) * ratio;
+        g.lineCap = "round";
+        for (let i = 0; i < streamerCount; i += 1) {
+          const y0 = topY + i * spacing;
+          const phase = i * 0.9 + t * (6.5 + 2.2 * strength);
+          const len = baseLen * (0.88 + 0.18 * Math.sin(t * 3.5 + i));
+          g.strokeStyle = `rgba(14, 116, 144, ${0.34 - i * 0.06})`;
+          g.beginPath();
+          g.moveTo(baseX, y0);
+          const steps = 16;
+          for (let s = 1; s <= steps; s += 1) {
+            const u = s / steps;
+            const x = baseX + dir * len * u;
+            const wave = Math.sin(phase + u * 7.2) * amp * (1 - 0.28 * u);
+            const y = y0 + wave;
+            g.lineTo(x, y);
+          }
+          g.stroke();
+        }
+      }
+
+      drawStreamers();
+
+      if (cartImage.complete && cartImage.naturalWidth > 0) {
+        g.save();
+        g.translate(cartX, 0);
+        if (els.fanDir.value === "left") {
+          g.scale(-1, 1);
+        }
+        g.drawImage(cartImage, -cartW / 2, cartY, cartW, cartH);
+        g.restore();
+      } else {
+        g.fillStyle = "#94a3b8";
+        g.fillRect(cartX - cartW / 2, cartY, cartW, cartH);
+      }
+
+      function drawVectorArrow(startX, startY, value, pxPerUnit, color, label, options = {}) {
+        const { minVisibleLength = 0, hideNearZero = false } = options;
+        if (hideNearZero && Math.abs(value) < 1e-6) return;
+        const ratio = window.devicePixelRatio || 1;
+        const absLen = Math.max(minVisibleLength, Math.abs(value) * pxPerUnit);
+        if (absLen < 1e-6) return;
+        const dir = value < 0 ? -1 : 1;
+        const len = dir * absLen;
+        const endX = startX + len;
+        const head = 10 * ratio;
+
+        g.strokeStyle = color;
+        g.fillStyle = color;
+        g.lineWidth = 3 * ratio;
+        g.beginPath();
+        g.moveTo(startX, startY);
+        g.lineTo(endX, startY);
+        g.stroke();
+
+        g.beginPath();
+        g.moveTo(endX, startY);
+        g.lineTo(endX - dir * head, startY - head * 0.55);
+        g.lineTo(endX - dir * head, startY + head * 0.55);
+        g.closePath();
+        g.fill();
+
+        g.font = `${13 * ratio}px ${getComputedStyle(document.documentElement).getPropertyValue("--mono")}`;
+        g.textAlign = dir > 0 ? "left" : "right";
+        g.textBaseline = "middle";
+        g.fillText(label, endX + dir * (8 * ratio), startY);
+      }
+
+      const arrowStartX = cartX;
+      const vArrowY = cartY - 34;
+      const aArrowY = cartY - 58;
+      drawVectorArrow(arrowStartX, vArrowY, state.v, 110, "#0284c7", "v", { minVisibleLength: 0 });
+      drawVectorArrow(arrowStartX, aArrowY, state.a, 320, "#ea580c", "a", { minVisibleLength: 20, hideNearZero: true });
+    }
+
+    function expandedRange(data, key) {
+      const base = DEFAULT_GRAPH_LIMITS[key];
+      let min = base.min;
+      let max = base.max;
+      const dataMin = Math.min(...data);
+      const dataMax = Math.max(...data);
+
+      if (dataMin < min || dataMax > max) {
+        const span = Math.max(dataMax - dataMin, max - min, 1e-6);
+        const pad = 0.12 * span;
+        min = Math.min(min, dataMin - pad);
+        max = Math.max(max, dataMax + pad);
+      }
+
+      if (Math.abs(max - min) < 1e-9) {
+        min -= 1;
+        max += 1;
+      }
+      return { min, max };
+    }
+
+    function drawGraph(canvas, context, data, color, yLabel, key) {
+      resizeCanvasToDisplaySize(canvas);
+      const w = canvas.width;
+      const h = canvas.height;
+      const ratio = window.devicePixelRatio || 1;
+
+      context.clearRect(0, 0, w, h);
+      context.fillStyle = "#f8fafc";
+      context.fillRect(0, 0, w, h);
+
+      const padL = 46 * ratio;
+      const padR = 14 * ratio;
+      const padT = 16 * ratio;
+      const padB = 26 * ratio;
+      const gw = w - padL - padR;
+      const gh = h - padT - padB;
+
+      context.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--grid");
+      context.lineWidth = 1 * ratio;
+      for (let i = 0; i <= 5; i += 1) {
+        const y = padT + (gh * i) / 5;
+        context.beginPath();
+        context.moveTo(padL, y);
+        context.lineTo(padL + gw, y);
+        context.stroke();
+      }
+
+      const tDataMin = series.t[0];
+      const tDataMax = Math.max(tDataMin + 0.1, series.t[series.t.length - 1]);
+      const tMin = Math.min(0, tDataMin);
+      const tMax = Math.max(10, tDataMax);
+
+      const range = expandedRange(data, key);
+      const yMin = range.min;
+      const yMax = range.max;
+
+      const xOf = (t) => padL + ((t - tMin) / (tMax - tMin)) * gw;
+      const yOf = (y) => padT + ((yMax - y) / (yMax - yMin)) * gh;
+
+      const yAxisX = xOf(0);
+      if (yAxisX >= padL && yAxisX <= padL + gw) {
+        context.strokeStyle = "#1e293b";
+        context.lineWidth = 1.4 * ratio;
+        context.beginPath();
+        context.moveTo(yAxisX, padT);
+        context.lineTo(yAxisX, padT + gh);
+        context.stroke();
+      }
+
+      const xAxisY = yOf(0);
+      if (xAxisY >= padT && xAxisY <= padT + gh) {
+        context.strokeStyle = "#1e293b";
+        context.lineWidth = 1.4 * ratio;
+        context.beginPath();
+        context.moveTo(padL, xAxisY);
+        context.lineTo(padL + gw, xAxisY);
+        context.stroke();
+      }
+
+      context.strokeStyle = color;
+      context.lineWidth = 2.2 * ratio;
+      context.beginPath();
+      for (let i = 0; i < series.t.length; i += 1) {
+        const x = xOf(series.t[i]);
+        const y = yOf(data[i]);
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      }
+      context.stroke();
+
+      context.fillStyle = "#334155";
+      context.font = `${11 * ratio}px ${getComputedStyle(document.documentElement).getPropertyValue("--mono")}`;
+      context.textAlign = "right";
+      context.fillText(yMax.toFixed(2), padL - 6 * ratio, padT + 8 * ratio);
+      context.fillText(yMin.toFixed(2), padL - 6 * ratio, padT + gh);
+      context.textAlign = "center";
+      context.fillText("time (s)", padL + gw * 0.5, h - 6 * ratio);
+      context.save();
+      context.translate(12 * ratio, padT + gh * 0.5);
+      context.rotate(-Math.PI / 2);
+      context.fillText(yLabel, 0, 0);
+      context.restore();
+    }
+
+    function drawAll() {
+      drawSim();
+      drawGraph(canvases.x, ctx.x, series.x, "#0284c7", "x (m)", "x");
+      drawGraph(canvases.v, ctx.v, series.v, "#059669", "v (m/s)", "v");
+      drawGraph(canvases.a, ctx.a, series.a, "#dc2626", "a (m/s²)", "a");
+    }
+
+    let lastTs = performance.now();
+    function animate(ts) {
+      const elapsed = Math.min(0.05, (ts - lastTs) / 1000);
+      lastTs = ts;
+
+      if (state.running) {
+        state.accumulator += elapsed;
+        while (state.accumulator >= DT) {
+          stepEulerCromer(DT);
+          state.accumulator -= DT;
+        }
+      }
+
+      updateReadout();
+      drawAll();
+      requestAnimationFrame(animate);
+    }
+
+    els.toggle.addEventListener("click", () => {
+      state.running = !state.running;
+      els.toggle.textContent = state.running ? "Pause" : "Run";
+    });
+
+    els.reset.addEventListener("click", () => {
+      resetSimulation();
+      state.running = false;
+      els.toggle.textContent = "Run";
+    });
+
+    els.vDir.addEventListener("change", resetSimulation);
+    els.vMag.addEventListener("change", resetSimulation);
+    els.x0.addEventListener("change", resetSimulation);
+    els.fanDir.addEventListener("change", () => {
+      state.a = currentAcceleration();
+    });
+    els.fanPower.addEventListener("change", () => {
+      state.a = currentAcceleration();
+    });
+
+    window.addEventListener("resize", drawAll);
+    cartImage.addEventListener("load", drawAll);
+
+    resetSimulation();
+    els.toggle.textContent = "Run";
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
