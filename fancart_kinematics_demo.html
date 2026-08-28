@@ -106,6 +106,22 @@
       margin-top: 4px;
     }
 
+    .toggle-row {
+      margin-top: 8px;
+      font-size: 0.86rem;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      accent-color: var(--accent-2);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
     button {
       border: 0;
       border-radius: 10px;
@@ -251,6 +267,10 @@
         <button id="toggle">Pause</button>
         <button id="reset">Reset</button>
       </div>
+      <label class="toggle-row">
+        <input id="showStreamers" type="checkbox" checked />
+        Show fan streamers
+      </label>
 
       <div class="readout">
         <div id="timeReadout">t = 0.00 s</div>
@@ -299,7 +319,8 @@
       v: 0,
       a: 0,
       running: false,
-      accumulator: 0
+      accumulator: 0,
+      trackViewMeters: 2.0
     };
 
     const series = { t: [], x: [], v: [], a: [] };
@@ -310,6 +331,7 @@
       x0: document.getElementById("x0"),
       fanDir: document.getElementById("fanDir"),
       fanPower: document.getElementById("fanPower"),
+      showStreamers: document.getElementById("showStreamers"),
       toggle: document.getElementById("toggle"),
       reset: document.getElementById("reset"),
       timeReadout: document.getElementById("timeReadout"),
@@ -349,6 +371,7 @@
       state.v = dirSign(els.vDir.value) * V_MAG[els.vMag.value];
       state.a = currentAcceleration();
       state.accumulator = 0;
+      state.trackViewMeters = 2.0;
 
       series.t = [0];
       series.x = [state.x];
@@ -411,9 +434,15 @@
       g.stroke();
 
       const cartLengthMeters = 0.2;
-      const visibleTrackMeters = 2.0;
+      let visibleTrackMeters = state.trackViewMeters;
       const centerX = w * 0.5;
-      const pxPerMeter = (w - 80) / visibleTrackMeters;
+      const margin = 40;
+      const targetHalfRange = Math.abs(state.x) + cartLengthMeters * 0.7;
+      if (targetHalfRange > visibleTrackMeters / 2) {
+        visibleTrackMeters = Math.max(visibleTrackMeters, targetHalfRange * 2.2);
+        state.trackViewMeters = visibleTrackMeters;
+      }
+      const pxPerMeter = (w - 2 * margin) / visibleTrackMeters;
       const cartW = cartLengthMeters * pxPerMeter;
       const cartX = centerX + state.x * pxPerMeter;
       const cartH = cartW * 0.6;
@@ -425,10 +454,12 @@
       g.font = `${10 * (window.devicePixelRatio || 1)}px ${getComputedStyle(document.documentElement).getPropertyValue("--mono")}`;
       g.textAlign = "center";
       g.textBaseline = "top";
-      for (let i = -10; i <= 10; i += 1) {
+      const halfRange = visibleTrackMeters / 2;
+      const maxTickIndex = Math.floor(halfRange / 0.1);
+      for (let i = -maxTickIndex; i <= maxTickIndex; i += 1) {
         const m = i / 10;
         const markX = centerX + m * pxPerMeter;
-        if (markX < 22 || markX > w - 22) continue;
+        if (markX < margin - 2 || markX > w - margin + 2) continue;
         const isMajor = i % 5 === 0;
         const markLen = isMajor ? 14 : 8;
         g.beginPath();
@@ -439,6 +470,43 @@
           g.fillText(`${m.toFixed(1)} m`, markX, trackY + 10);
         }
       }
+
+      function drawStreamers() {
+        const power = els.fanPower.value;
+        if (!els.showStreamers.checked || power === "off") return;
+        const ratio = window.devicePixelRatio || 1;
+        const dir = els.fanDir.value === "left" ? 1 : -1;
+        const strength = power === "high" ? 1 : 0.6;
+        const baseLen = (42 + 26 * strength) * ratio;
+        const amp = (8 + 10 * strength) * ratio;
+        const t = state.t;
+        const streamerCount = 4;
+        const baseX = cartX + dir * (cartW * 0.44);
+        const topY = cartY + cartH * 0.16;
+        const spacing = (cartH * 0.62) / (streamerCount - 1);
+
+        g.lineWidth = (2.2 + 1.3 * strength) * ratio;
+        g.lineCap = "round";
+        for (let i = 0; i < streamerCount; i += 1) {
+          const y0 = topY + i * spacing;
+          const phase = i * 0.9 + t * (6.5 + 2.2 * strength);
+          const len = baseLen * (0.88 + 0.18 * Math.sin(t * 3.5 + i));
+          g.strokeStyle = `rgba(14, 116, 144, ${0.34 - i * 0.06})`;
+          g.beginPath();
+          g.moveTo(baseX, y0);
+          const steps = 16;
+          for (let s = 1; s <= steps; s += 1) {
+            const u = s / steps;
+            const x = baseX + dir * len * u;
+            const wave = Math.sin(phase + u * 7.2) * amp * (1 - 0.28 * u);
+            const y = y0 + wave;
+            g.lineTo(x, y);
+          }
+          g.stroke();
+        }
+      }
+
+      drawStreamers();
 
       if (cartImage.complete && cartImage.naturalWidth > 0) {
         g.save();
